@@ -32,8 +32,3 @@ output "mig_instance_group_name" {
   description = "Managed Instance Group name"
   value       = google_compute_region_instance_group_manager.mig.name
 }
-
-output "locust_load_test_url" {
-  description = "URL for Locust load test UI (if deployed)"
-  value       = google_cloud_run_service.locust.status[0].url
-}
