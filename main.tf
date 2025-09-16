@@ -5,109 +5,55 @@ terraform {
       version = ">= 4.60.0"
     }
   }
+  required_version = ">= 1.0"
 }
 
 provider "google" {
-  credentials = file("account.json")    # Service account JSON
-  project     = var.project_id
-  region      = var.region
+  project = var.project_id
+  region  = var.region
 }
 
-resource "google_storage_bucket" "app_bucket" {
-  name     = "${var.project_id}-bucket"
-  location = var.region
-}
+resource "google_storage_bucket" "bookmyshow_site" {
+  name          = "${var.project_id}-bookmyshow-site"
+  location      = var.region
+  force_destroy = true
 
-resource "google_sql_database_instance" "main" {
-  name             = "ticket-db"
-  region           = var.region
-  database_version = "POSTGRES_13"
-
-  settings {
-    tier = "db-f1-micro"
-    backup_configuration {
-      enabled = true
-    }
+  website {
+    main_page_suffix = "index.html"
+    not_found_page   = "index.html"
   }
 }
 
-resource "google_sql_user" "default" {
-  name     = "postgres"
-  instance = google_sql_database_instance.main.name
-  password = var.db_password
+resource "google_storage_bucket_iam_binding" "public_read" {
+  bucket = google_storage_bucket.bookmyshow_site.name
+  role   = "roles/storage.objectViewer"
+  members = [
+    "allUsers",
+  ]
 }
 
-resource "google_sql_database" "appdb" {
-  name     = "appdb"
-  instance = google_sql_database_instance.main.name
+resource "google_storage_bucket_object" "index_html" {
+  name   = "index.html"
+  bucket = google_storage_bucket.bookmyshow_site.name
+  source = "${path.module}/site/index.html"
+  content_type = "text/html"
 }
 
-resource "google_cloud_run_service" "frontend" {
-  name     = "bookmyshow-frontend"
-  location = var.region
-
-  template {
-    spec {
-      containers {
-        image = var.frontend_image
-        env {
-          name  = "API_URL"
-          value = var.api_url
-        }
-      }
-    }
-  }
-
-  traffic {
-    percent         = 100
-    latest_revision = true
-  }
+resource "google_storage_bucket_object" "styles_css" {
+  name   = "styles.css"
+  bucket = google_storage_bucket.bookmyshow_site.name
+  source = "${path.module}/site/styles.css"
+  content_type = "text/css"
 }
 
-resource "google_cloud_run_service" "api" {
-  name     = "bookmyshow-api"
-  location = var.region
-
-  template {
-    spec {
-      containers {
-        image = var.api_image
-        env {
-          name  = "DB_HOST"
-          value = google_sql_database_instance.main.public_ip_address
-        }
-        env {
-          name  = "DB_NAME"
-          value = google_sql_database.appdb.name
-        }
-        env {
-          name  = "DB_USER"
-          value = google_sql_user.default.name
-        }
-        env {
-          name  = "DB_PASS"
-          value = var.db_password
-        }
-      }
-    }
-  }
-
-  traffic {
-    percent         = 100
-    latest_revision = true
-  }
+resource "google_storage_bucket_object" "script_js" {
+  name   = "script.js"
+  bucket = google_storage_bucket.bookmyshow_site.name
+  source = "${path.module}/site/script.js"
+  content_type = "application/javascript"
 }
 
-resource "google_cloud_run_service_iam_member" "all_users_frontend" {
-  service    = google_cloud_run_service.frontend.name
-  location   = google_cloud_run_service.frontend.location
-  role       = "roles/run.invoker"
-  member     = "allUsers"
-}
-
-resource "google_cloud_run_service_iam_member" "all_users_api" {
-  service    = google_cloud_run_service.api.name
-  location   = google_cloud_run_service.api.location
-  role       = "roles/run.invoker"
-  member     = "allUsers"
+output "site_url" {
+  value       = "http://${google_storage_bucket.bookmyshow_site.name}.storage.googleapis.com/index.html"
+  description = "URL for the deployed BookMyShow static site"
 }
