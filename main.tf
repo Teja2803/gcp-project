@@ -14,7 +14,6 @@ provider "google" {
   credentials = file("creds.json")
 }
 
-# Static Site Bucket
 resource "google_storage_bucket" "bookmyshow_site" {
   name          = "${var.project_id}-bookmyshow-site"
   location      = var.region
@@ -55,7 +54,6 @@ resource "google_storage_bucket_object" "script_js" {
   content_type = "application/javascript"
 }
 
-# Compute Engine Instance Template
 resource "google_compute_instance_template" "app_template" {
   name         = "bookmyshow-instance-template"
   machine_type = "e2-medium"
@@ -79,7 +77,6 @@ resource "google_compute_instance_template" "app_template" {
   EOT
 }
 
-# Managed Instance Group with autoscaling and auto-healing
 resource "google_compute_region_instance_group_manager" "mig" {
   name               = "bookmyshow-mig"
   region             = var.region
@@ -96,9 +93,10 @@ resource "google_compute_region_instance_group_manager" "mig" {
   }
 }
 
-resource "google_compute_autoscaler" "mig_autoscaler" {
-  name   = "bookmyshow-autoscaler"
-  region = var.region
+resource "google_compute_region_autoscaler" "mig_autoscaler" {
+  name    = "bookmyshow-autoscaler"
+  region  = var.region
+  project = var.project_id
 
   target = google_compute_region_instance_group_manager.mig.id
 
@@ -112,7 +110,6 @@ resource "google_compute_autoscaler" "mig_autoscaler" {
   }
 }
 
-# Health Check for Load Balancer and MIG
 resource "google_compute_health_check" "http_health_check" {
   name                 = "bookmyshow-http-health-check"
   check_interval_sec   = 10
@@ -126,7 +123,6 @@ resource "google_compute_health_check" "http_health_check" {
   }
 }
 
-# Backend Service for MIG
 resource "google_compute_backend_service" "mig_backend" {
   name          = "bookmyshow-backend"
   protocol      = "HTTP"
@@ -139,7 +135,6 @@ resource "google_compute_backend_service" "mig_backend" {
   }
 }
 
-# Cloud Run API service
 resource "google_cloud_run_service" "api" {
   name     = "bookmyshow-api"
   location = var.region
@@ -169,10 +164,10 @@ resource "google_cloud_run_service_iam_member" "api_invoker" {
   member   = "allUsers"
 }
 
-# Network Endpoint Group for Cloud Run
-resource "google_compute_network_endpoint_group" "cloud_run_neg" {
+resource "google_compute_region_network_endpoint_group" "cloud_run_neg" {
   name                  = "cloud-run-neg"
-  location              = var.region
+  project               = var.project_id
+  region                = var.region
   network_endpoint_type = "SERVERLESS"
 
   cloud_run {
@@ -180,7 +175,6 @@ resource "google_compute_network_endpoint_group" "cloud_run_neg" {
   }
 }
 
-# Backend Service for Cloud Run NEG
 resource "google_compute_backend_service" "cloud_run_backend" {
   name          = "bookmyshow-cloudrun-backend"
   protocol      = "HTTP"
@@ -189,11 +183,10 @@ resource "google_compute_backend_service" "cloud_run_backend" {
   health_checks = [google_compute_health_check.http_health_check.id]
 
   backend {
-    group = google_compute_network_endpoint_group.cloud_run_neg.id
+    group = google_compute_region_network_endpoint_group.cloud_run_neg.id
   }
 }
 
-# URL Map - routes /api/* to Cloud Run, others to MIG
 resource "google_compute_url_map" "url_map" {
   name           = "bookmyshow-url-map"
   default_service = google_compute_backend_service.mig_backend.id
@@ -214,13 +207,11 @@ resource "google_compute_url_map" "url_map" {
   }
 }
 
-# HTTP Proxy
 resource "google_compute_target_http_proxy" "http_proxy" {
   name    = "bookmyshow-http-proxy"
   url_map = google_compute_url_map.url_map.id
 }
 
-# Global Forwarding Rule
 resource "google_compute_global_forwarding_rule" "http_forwarding" {
   name                  = "bookmyshow-http-forwarding"
   load_balancing_scheme = "EXTERNAL"
@@ -229,7 +220,6 @@ resource "google_compute_global_forwarding_rule" "http_forwarding" {
   ip_protocol           = "TCP"
 }
 
-# Outputs
 output "site_url" {
   description = "Static Website URL"
   value       = "http://${google_storage_bucket.bookmyshow_site.name}.storage.googleapis.com/index.html"
