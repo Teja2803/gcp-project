@@ -239,7 +239,6 @@ resource "google_compute_backend_service" "cloud_run_backend" {
   protocol      = "HTTP"
   timeout_sec   = 30
   enable_cdn    = true
-  health_checks = [google_compute_health_check.http_health_check.id]
 
   backend {
     group = google_compute_region_network_endpoint_group.cloud_run_neg.id
