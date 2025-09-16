@@ -4,7 +4,12 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "GCP region for bucket location"
+  description = "GCP region for resource deployment"
   type        = string
   default     = "us-central1"
+}
+
+variable "api_image" {
+  description = "Container image for Cloud Run API"
+  type        = string
 }
