@@ -1,0 +1,6 @@
+project_id     = "sixth-syntax-472313-v9"
+region         = "us-central1"
+frontend_image = "gcr.io/my-gcp-project-id/bookmyshow-frontend:latest"
+api_image      = "gcr.io/my-gcp-project-id/bookmyshow-api:latest"
+db_password    = "yourstrongpassword"
+api_url        = "https://bookmyshow-api-demo.a.run.app"
